@@ -1,0 +1,44 @@
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.benchmarks/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Packaging
+/build/
+/dist/
+/dist-*/
+*.egg-info/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+._*
+.Spotlight-V100/
+.Trashes/
+Thumbs.db
+Desktop.ini
+
+# Local environment and publishing credentials
+/.env
+/.env.*
+!/.env.example
+/.direnv/
+/.pypirc
+
+# Local scan output and profiling data
+*.kingdirstat.json
+/kingdirstat_analysis.json
+/graphify-out/
+/*.prof
+/*.log
