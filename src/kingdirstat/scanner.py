@@ -312,6 +312,7 @@ class DirectoryScanner:
 
                     batch.children.append(child)
                 except OSError as exc:
+                    node.scan_complete = False
                     batch.errors.append(self._error(full_path, "stat", exc))
 
         return batch

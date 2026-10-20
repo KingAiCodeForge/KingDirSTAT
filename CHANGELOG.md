@@ -6,6 +6,25 @@ All notable changes to KingDirSTAT are documented here. The format is based on
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-10-20
+
+### Fixed
+
+- CLI outputs now refuse existing files, including aliases of scanned input, unless
+  `--overwrite` is supplied. Atomic publishing also refuses files created during export.
+- Unsupported and variable-length duplicate hash algorithms fail before scanning.
+- Malformed snapshot entry structures and values produce concise errors.
+- All free-text CSV entry columns escape formula prefixes, including line feeds.
+- Directories with unreadable child metadata are no longer reported as verified empty.
+- Closing the GUI during a slow cancellation keeps the scan thread alive safely.
+- Redirected CLI output uses UTF-8 so non-ASCII filenames survive Windows legacy code pages.
+
+### Qualification
+
+- Added data-preservation regressions and an installed-wheel smoke script covering
+  all analysis commands, spaces/Unicode paths, missing input and optional dependencies.
+- Retained beta status; see `docs/REVIEW-2.1.1.md` for reviewed modules and limitations.
+
 ## [2.1.0] - 2026-10-04
 
 ### Added

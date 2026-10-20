@@ -1040,7 +1040,10 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: Any) -> None:
         if self._thread is not None and self._thread.isRunning():
             self._thread.cancel()
-            self._thread.wait(3000)
+            if not self._thread.wait(3000):
+                self._status_label.setText("Cancelling scan; close again after it finishes.")
+                event.ignore()
+                return
         super().closeEvent(event)
 
 

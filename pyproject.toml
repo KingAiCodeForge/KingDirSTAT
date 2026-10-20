@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kingdirstat"
-version = "2.1.0"
+version = "2.1.1"
 description = "A modern, non-destructive disk usage analyser with a treemap GUI and automation-friendly CLI."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -60,6 +60,7 @@ include = [
   "/CHANGELOG.md",
   "/CONTRIBUTING.md",
   "/SECURITY.md",
+  "/docs",
   "/pyproject.toml",
 ]
 

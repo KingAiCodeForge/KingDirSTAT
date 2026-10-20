@@ -34,6 +34,36 @@ from kingdirstat.models import Entry, ScanResult
 from kingdirstat.scanner import DirectoryScanner
 
 
+def test_closing_during_a_slow_scan_keeps_the_worker_alive(qt_app) -> None:
+    """A cancellation timeout must not destroy a running QThread."""
+
+    from PySide6.QtGui import QCloseEvent
+
+    class SlowWorker:
+        cancelled = False
+
+        def isRunning(self):
+            return True
+
+        def cancel(self):
+            self.cancelled = True
+
+        def wait(self, milliseconds):
+            assert milliseconds == 3000
+            return False
+
+    window = MainWindow()
+    worker = SlowWorker()
+    window._thread = worker
+    event = QCloseEvent()
+    window.closeEvent(event)
+    assert not event.isAccepted()
+    assert worker.cancelled
+    assert window._thread is worker
+    window._thread = None
+    window.close()
+
+
 @pytest.fixture(scope="module")
 def qt_app():
     app = QApplication.instance() or QApplication([])

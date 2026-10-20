@@ -8,6 +8,13 @@ A disk usage analyser with a treemap desktop interface and an automation-friendl
 you explicitly request an output such as a snapshot, CSV report, or dry-run cleanup script. The
 `clean` command reports what could be reclaimed; it never performs the cleanup itself.
 
+CLI snapshot, CSV and cleanup-script outputs refuse existing destinations by default,
+including aliases of scanned files. Use `--overwrite` only when replacing that output
+is intentional. The GUI asks through its Save dialog; the Python export API retains
+its overwrite behavior and offers `overwrite=False` for protected writes. On Unix,
+protected atomic writes require same-directory hard-link support and fail safely if
+the destination filesystem does not provide it.
+
 ## Relationship to WinDirStat
 
 KingDirSTAT is an independent project inspired by the inspection and reporting workflow of
@@ -37,6 +44,12 @@ Run `kingdirstat --help` to verify the installation. The `gui` extra installs Py
 CLI-only installation use `python -m pip install -e .`. You can also invoke the installed package
 as `python -m kingdirstat`. Ad hoc top-level launchers from older private prototypes are not
 required or supported.
+
+Versioned wheels and source archives are attached to
+[GitHub releases](https://github.com/KingAiCodeForge/KingDirSTAT/releases). Install a downloaded
+wheel with `python -m pip install path/to/kingdirstat-2.1.1-py3-none-any.whl` from any directory.
+See [the preservation and script review](docs/REVIEW-2.1.1.md) for the exact public source,
+entrypoint coverage and qualification limits. The project remains beta.
 
 ## Desktop interface
 
@@ -74,6 +87,7 @@ them before sharing.
 Most live-analysis commands take a path; where the path is optional, it defaults to the current
 directory. `search`, snapshot export/compare, completion and GUI options show their own required
 arguments in `--help`. Add `--json` where offered for machine-readable output.
+Redirected CLI output uses UTF-8, including on Windows with a legacy console code page.
 
 ### `scan` - summarise a directory
 
