@@ -38,8 +38,8 @@ machine-specific configuration: none was found in these public modules.
 | `tests/conftest.py`, existing `test_*.py` | Existing suite retained; GUI regression added | Full suite; test fixture data only |
 | `tests/test_release_safety.py` | New regressions | Data preservation, races, aliases, CSV prefixes, malformed snapshots, unreadable metadata |
 | `tests/installed_smoke.py` | New CLI-only wheel qualification | Run with a clean noneditable wheel install outside the checkout, Unicode/space paths, input SHA-256 comparison |
-| `.github/workflows/ci.yml` | Added clean installed-wheel smoke | Ubuntu/Windows Python 3.10–3.13 suite and Ubuntu lint/type/build jobs |
-| `.github/workflows/release.yml` | Accurate checked-in notes, checksums, CLI-only wheel smoke | Tag/version check, tests, quality checks and build before GitHub-only release |
+| `.github/workflows/ci.yml` | Added clean installed-wheel smoke | Configured Ubuntu/Windows Python 3.10–3.13; hosted jobs could not start (account billing lock) |
+| `.github/workflows/release.yml` | Accurate checked-in notes, checksums, CLI-only wheel smoke | Configured tag/version/test/build gates; hosted execution unavailable under the same billing lock |
 
 No public runtime script is excluded or still unreviewed. Older private prototypes
 and other repositories are excluded historical material, not qualified scripts.
@@ -61,10 +61,22 @@ without GUI extras, install only the built wheel (`pip install --no-deps <wheel>
 change to a directory outside this checkout, and run that environment's Python on
 the absolute path to `tests/installed_smoke.py`. Do not set `PYTHONPATH`.
 
-Local qualification used Windows/Python 3.13 with PySide6 6.9.2 for the full offscreen
-suite and a clean CLI-only wheel environment. CI separately records its exact
-platform/Python matrix outcomes. Release receipts record source SHAs and artifact
-SHA-256 values. A passing smoke test does not replace the module ledger above.
+Local qualification passed on Windows/Python 3.13 with PySide6 6.9.2: **181 tests
+passed** with no skips. Ubuntu 24.04/WSL Python 3.12.3 passed **152 tests**; the GUI
+test module was skipped because this separate environment intentionally had no
+PySide6. Clean CLI-only installed-wheel qualification passed outside the checkout
+on both platforms, forcing a legacy cp1252 pipe encoding while exercising Chinese,
+accented and space-containing paths. Ruff format/lint and mypy (11 modules) passed.
+
+[Candidate CI run 39392783718](https://github.com/KingAiCodeForge/KingDirSTAT/actions/runs/39392783718)
+had nine failed jobs with no executed steps. GitHub's exact failure annotation was
+"The job was not started because your account is locked due to a billing issue."
+Hosted CI is **not** a passing result; Python 3.10/3.11 and the full hosted matrix
+remain unqualified. Branch protection was absent and branch rules were empty;
+no required checks, billing or security settings were changed or bypassed. This
+beta release is qualified by the bounded local checks above. Release receipts
+record exact source SHAs and artifact SHA-256 values; they do not assert hosted
+CI or exhaustive project correctness.
 
 The project remains beta. Interactive desktop behavior on every platform, macOS,
 unusual/remote filesystems, live network shares, every permission/symlink race,
