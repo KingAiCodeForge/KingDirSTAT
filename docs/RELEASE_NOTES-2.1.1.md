@@ -5,6 +5,7 @@ KingDirSTAT 2.1.1 is a beta safety and portability update to the public 2.1.0 so
   default. Use `--overwrite` to intentionally replace an output.
 - Race-safe output publication also protects destinations created during export.
 - Duplicate hashing rejects unsupported/variable-length digests before scanning.
+- Redirected CLI output stays UTF-8 even with a Windows legacy code page.
 - Snapshot entry validation and CSV text escaping cover additional malformed input.
 - Unreadable metadata no longer makes a directory look verified empty; slow GUI
   cancellation no longer destroys the running scan thread on close.

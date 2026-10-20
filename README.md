@@ -87,6 +87,7 @@ them before sharing.
 Most live-analysis commands take a path; where the path is optional, it defaults to the current
 directory. `search`, snapshot export/compare, completion and GUI options show their own required
 arguments in `--help`. Add `--json` where offered for machine-readable output.
+Redirected CLI output uses UTF-8, including on Windows with a legacy console code page.
 
 ### `scan` - summarise a directory
 

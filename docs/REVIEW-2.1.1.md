@@ -26,7 +26,7 @@ machine-specific configuration: none was found in these public modules.
 | --- | --- | --- |
 | `__init__.py` | Version 2.1.1 | Installed import and `--version` |
 | `__main__.py` | Inspected, unchanged | Installed `python -m kingdirstat` help and commands |
-| `cli.py` | Protected output defaults, explicit overwrite, early hash validation | CLI suite; installed commands, missing path/dependency, source/output aliases |
+| `cli.py` | Protected output defaults, explicit overwrite, early hash validation, UTF-8 redirected output | CLI suite; installed commands under a legacy code page, missing path/dependency, source/output aliases |
 | `analysis.py` | Reject variable-length/unsupported hashes before file reads | Analysis suite and hash regression; fixture duplicate/search/tree/clean commands |
 | `scanner.py` | Mark directory incomplete on child stat failure | Scanner suite; synthetic error/cancellation/depth limits and known-byte trees |
 | `models.py` | Inspected, unchanged | Scanner/round-trip tests and snapshot validation regressions |

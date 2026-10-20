@@ -277,6 +277,12 @@ def _add_scan_options(parser: argparse.ArgumentParser) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    # Windows pipes otherwise inherit a legacy code page, which can corrupt JSON
+    # or reject valid filesystem names. Redirected CLI output has a UTF-8 contract.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure) and not stream.isatty():
+            reconfigure(encoding="utf-8", errors="backslashreplace")
     arguments = list(sys.argv[1:] if argv is None else argv)
     arguments = _normalise_legacy_arguments(arguments)
     parser = build_parser()

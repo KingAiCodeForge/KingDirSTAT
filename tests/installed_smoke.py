@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -24,6 +25,7 @@ def main() -> None:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            env={**os.environ, "PYTHONUTF8": "0", "PYTHONIOENCODING": "cp1252"},
             timeout=30,
         )
         assert result.returncode == code, (args, result.returncode, result.stderr)
@@ -32,7 +34,7 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory(prefix="KingDirSTAT portable é ") as temporary:
         base = Path(temporary)
-        root = base / "données with spaces"
+        root = base / "données 数据 with spaces"
         cache = root / "__pycache__"
         cache.mkdir(parents=True)
         (root / "café.txt").write_bytes(b"duplicate data")

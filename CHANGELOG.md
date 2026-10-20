@@ -17,6 +17,7 @@ All notable changes to KingDirSTAT are documented here. The format is based on
 - All free-text CSV entry columns escape formula prefixes, including line feeds.
 - Directories with unreadable child metadata are no longer reported as verified empty.
 - Closing the GUI during a slow cancellation keeps the scan thread alive safely.
+- Redirected CLI output uses UTF-8 so non-ASCII filenames survive Windows legacy code pages.
 
 ### Qualification
 
