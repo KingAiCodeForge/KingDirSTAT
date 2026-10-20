@@ -24,6 +24,7 @@ from .analysis import (
     search_entries,
     stale_files,
     tree_rows,
+    validate_hash_algorithm,
     validate_search_options,
 )
 from .drives import DriveSelector, drive_for_path
@@ -89,6 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--top", type=_positive_int, default=10, help="largest files to include")
     scan.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     scan.add_argument("--save", metavar="FILE", help="also save a versioned snapshot")
+    _add_output_options(scan)
     scan.add_argument(
         "--path-mode", choices=["absolute", "relative", "redacted"], default="absolute"
     )
@@ -138,6 +140,7 @@ def build_parser() -> argparse.ArgumentParser:
     duplicates.add_argument("--min-size", type=parse_size, default=1)
     duplicates.add_argument("--algorithm", default="sha256")
     duplicates.add_argument("--csv", metavar="FILE", help="also save one row per duplicate path")
+    _add_output_options(duplicates)
     duplicates.add_argument("--json", action="store_true")
     duplicates.set_defaults(handler=_command_duplicates)
 
@@ -157,6 +160,7 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("path")
     export.add_argument("output", help="destination file or - for stdout")
     export.add_argument("--format", choices=["json", "csv"], default="json")
+    _add_output_options(export)
     export.add_argument(
         "--path-mode", choices=["absolute", "relative", "redacted"], default="absolute"
     )
@@ -232,12 +236,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="write a dry-run .ps1 or .sh you can review and run yourself",
     )
     clean.add_argument("--json", action="store_true")
+    _add_output_options(clean)
     clean.set_defaults(handler=_command_clean)
 
     completion = subparsers.add_parser("completion", help="print a shell completion script")
     completion.add_argument("shell", choices=["powershell", "bash", "zsh"])
     completion.set_defaults(handler=_command_completion)
     return parser
+
+
+def _add_output_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--overwrite", action="store_true", help="explicitly replace an existing output file"
+    )
+
+
+def _check_output(destination: str | None, *, overwrite: bool) -> None:
+    if destination and destination != "-" and not overwrite and os.path.lexists(destination):
+        raise FileExistsError(
+            f"Output already exists: {destination}. Use --overwrite to replace it."
+        )
 
 
 def _add_scan_options(parser: argparse.ArgumentParser) -> None:
@@ -276,9 +294,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _command_scan(args: argparse.Namespace) -> int:
+    _check_output(args.save, overwrite=args.overwrite)
     result = _scan(args.path, args)
     if args.save:
-        write_snapshot(result, args.save, path_mode=args.path_mode)
+        write_snapshot(result, args.save, path_mode=args.path_mode, overwrite=args.overwrite)
     if args.json:
         payload = scan_summary(result)
         payload["largest_files"] = [
@@ -378,6 +397,8 @@ def _command_types(args: argparse.Namespace) -> int:
 
 
 def _command_duplicates(args: argparse.Namespace) -> int:
+    _check_output(args.csv, overwrite=args.overwrite)
+    validate_hash_algorithm(args.algorithm)
     result = _scan(args.path, args)
     report = find_duplicates(
         result.root,
@@ -411,6 +432,7 @@ def _command_duplicates(args: argparse.Namespace) -> int:
                     key=lambda item: (item.path.casefold(), item.path),
                 )
             ),
+            overwrite=args.overwrite,
         )
         print(f"Saved duplicate report CSV: {written.resolve()}", file=sys.stderr)
     if args.json:
@@ -482,6 +504,7 @@ def _command_stale(args: argparse.Namespace) -> int:
 
 
 def _command_export(args: argparse.Namespace) -> int:
+    _check_output(args.output, overwrite=args.overwrite)
     result = _scan(args.path, args)
     if args.output == "-":
         if args.format == "json":
@@ -489,10 +512,10 @@ def _command_export(args: argparse.Namespace) -> int:
         else:
             write_csv_stream(result, sys.stdout, path_mode=args.path_mode)
     elif args.format == "json":
-        write_snapshot(result, args.output, path_mode=args.path_mode)
+        write_snapshot(result, args.output, path_mode=args.path_mode, overwrite=args.overwrite)
         print(f"Saved snapshot: {Path(args.output).resolve()}", file=sys.stderr)
     else:
-        write_csv(result, args.output, path_mode=args.path_mode)
+        write_csv(result, args.output, path_mode=args.path_mode, overwrite=args.overwrite)
         print(f"Saved CSV: {Path(args.output).resolve()}", file=sys.stderr)
     return _result_exit_code(result)
 
@@ -712,6 +735,7 @@ def _command_space(args: argparse.Namespace) -> int:
 
 
 def _command_clean(args: argparse.Namespace) -> int:
+    _check_output(args.emit_script, overwrite=args.overwrite)
     result = _scan(args.path, args)
     confidence = None if args.confidence == "all" else args.confidence
     candidates = cleanup_candidates(
@@ -724,7 +748,9 @@ def _command_clean(args: argparse.Namespace) -> int:
     total = sum(candidate.size for candidate in candidates)
 
     if args.emit_script:
-        written = _write_cleanup_script(args.emit_script, candidates, result.root.path)
+        written = _write_cleanup_script(
+            args.emit_script, candidates, result.root.path, overwrite=args.overwrite
+        )
         print(f"Wrote review script: {written}", file=sys.stderr)
         print("It runs as a dry run until you edit it. Nothing has been deleted.", file=sys.stderr)
 
@@ -781,6 +807,8 @@ def _write_cleanup_script(
     destination: str,
     candidates: Sequence[Any],
     root: str,
+    *,
+    overwrite: bool = True,
 ) -> Path:
     output = Path(destination)
     powershell = output.suffix.lower() == ".ps1"
@@ -830,7 +858,7 @@ def _write_cleanup_script(
             )
             lines.append(f"run '{escaped}'")
             lines.append("")
-    atomic_write_text(output, "\n".join(lines) + "\n")
+    atomic_write_text(output, "\n".join(lines) + "\n", overwrite=overwrite)
     return output.resolve()
 
 

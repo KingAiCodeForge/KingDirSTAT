@@ -224,6 +224,17 @@ def stale_files(root: Entry, *, older_than_days: int) -> list[Entry]:
     )
 
 
+def validate_hash_algorithm(algorithm: str) -> None:
+    """Reject unsupported or variable-length digests before opening files."""
+
+    try:
+        hasher = hashlib.new(algorithm)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Unsupported hash algorithm: {algorithm}") from exc
+    if hasher.digest_size <= 0:
+        raise ValueError(f"Hash algorithm requires an output length: {algorithm}")
+
+
 def find_duplicates(
     root: Entry,
     *,
@@ -234,8 +245,7 @@ def find_duplicates(
 ) -> DuplicateReport:
     """Hash same-size candidates; matching hashes are true content duplicates."""
 
-    if algorithm not in hashlib.algorithms_available:
-        raise ValueError(f"Unsupported hash algorithm: {algorithm}")
+    validate_hash_algorithm(algorithm)
     stop = stop_event or threading.Event()
     by_size: dict[int, list[Entry]] = defaultdict(list)
     for entry in iter_files(root):

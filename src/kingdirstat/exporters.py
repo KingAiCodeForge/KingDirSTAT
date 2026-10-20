@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import csv
 import json
+import math
 import os
 import tempfile
 from collections.abc import Callable, Iterable, Sequence
@@ -60,18 +61,60 @@ def write_snapshot(
     destination: str | os.PathLike[str],
     *,
     path_mode: PathMode = "absolute",
+    overwrite: bool = True,
 ) -> Path:
     output = Path(destination)
-    atomic_write_text(output, dumps_snapshot(result, path_mode=path_mode))
+    atomic_write_text(output, dumps_snapshot(result, path_mode=path_mode), overwrite=overwrite)
     return output
 
 
 def read_snapshot(source: str | os.PathLike[str]) -> ScanResult:
-    with Path(source).open("r", encoding="utf-8") as stream:
-        payload = json.load(stream)
-    if not isinstance(payload, dict) or "root" not in payload:
-        raise ValueError("Not a KingDirSTAT snapshot")
-    return ScanResult.from_dict(payload)
+    try:
+        with Path(source).open("r", encoding="utf-8") as stream:
+            payload = json.load(stream)
+        if not isinstance(payload, dict) or "root" not in payload:
+            raise ValueError("Not a KingDirSTAT snapshot")
+        result = ScanResult.from_dict(payload)
+        _validate_snapshot_entries(result)
+        return result
+    except (AttributeError, KeyError, TypeError, OverflowError, RecursionError) as exc:
+        raise ValueError("Invalid KingDirSTAT snapshot structure") from exc
+
+
+def _validate_snapshot_entries(result: ScanResult) -> None:
+    """Validate values used by CLI analysis and the GUI before displaying a file."""
+
+    value: Any
+    for entry in result.root.walk():
+        for value in (entry.name, entry.path, entry.extension):
+            if not isinstance(value, str):
+                raise ValueError("Invalid snapshot: entry text fields must be strings")
+        if entry.skip_reason is not None and not isinstance(entry.skip_reason, str):
+            raise ValueError("Invalid snapshot: skip_reason must be a string or null")
+        for value in (
+            entry.is_dir,
+            entry.is_symlink,
+            entry.is_reparse_point,
+            entry.is_hardlink_duplicate,
+            entry.scan_complete,
+        ):
+            if not isinstance(value, bool):
+                raise ValueError("Invalid snapshot: entry flags must be booleans")
+        for value in (
+            entry.size,
+            entry.allocated_size,
+            entry.depth,
+            entry.file_attributes,
+            entry.file_count,
+            entry.directory_count,
+        ):
+            if type(value) is not int or value < 0:
+                raise ValueError(
+                    "Invalid snapshot: entry counts and sizes must be nonnegative integers"
+                )
+        for value in (entry.modified_time, entry.created_time):
+            if value is not None and (type(value) not in (int, float) or not math.isfinite(value)):
+                raise ValueError("Invalid snapshot: timestamps must be finite numbers or null")
 
 
 def write_csv(
@@ -79,11 +122,13 @@ def write_csv(
     destination: str | os.PathLike[str],
     *,
     path_mode: PathMode = "absolute",
+    overwrite: bool = True,
 ) -> Path:
     output = Path(destination)
     _write_csv_atomically(
         output,
         lambda stream: write_csv_stream(result, stream, path_mode=path_mode),
+        overwrite=overwrite,
     )
     return output
 
@@ -92,6 +137,8 @@ def write_csv_rows(
     destination: str | os.PathLike[str],
     header: Sequence[str],
     rows: Iterable[Sequence[Any]],
+    *,
+    overwrite: bool = True,
 ) -> Path:
     """Atomically write formula-safe tabular rows to a CSV file."""
 
@@ -105,11 +152,13 @@ def write_csv_rows(
                 [_spreadsheet_safe(value) if isinstance(value, str) else value for value in row]
             )
 
-    _write_csv_atomically(output, emit)
+    _write_csv_atomically(output, emit, overwrite=overwrite)
     return output
 
 
-def _write_csv_atomically(output: Path, emit: Callable[[TextIO], None]) -> None:
+def _write_csv_atomically(
+    output: Path, emit: Callable[[TextIO], None], *, overwrite: bool = True
+) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     handle, temporary_name = tempfile.mkstemp(
         prefix=f".{output.name}.", suffix=".tmp", dir=output.parent, text=True
@@ -119,7 +168,7 @@ def _write_csv_atomically(output: Path, emit: Callable[[TextIO], None]) -> None:
             emit(stream)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary_name, output)
+        _publish_output(temporary_name, output, overwrite=overwrite)
     except Exception:
         with contextlib.suppress(OSError):
             os.unlink(temporary_name)
@@ -171,11 +220,11 @@ def write_csv_stream(
                 entry.file_count,
                 entry.directory_count,
                 entry.modified_time,
-                entry.extension,
+                _spreadsheet_safe(entry.extension),
                 entry.is_symlink,
                 entry.is_reparse_point,
                 entry.scan_complete,
-                entry.skip_reason or "",
+                _spreadsheet_safe(entry.skip_reason or ""),
             ]
         )
         for child in reversed(entry.children):
@@ -183,7 +232,7 @@ def write_csv_stream(
             stack.append((child, child_relative))
 
 
-def atomic_write_text(path: Path, content: str) -> None:
+def atomic_write_text(path: Path, content: str, *, overwrite: bool = True) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     handle, temporary_name = tempfile.mkstemp(
         prefix=f".{path.name}.", suffix=".tmp", dir=path.parent, text=True
@@ -193,16 +242,33 @@ def atomic_write_text(path: Path, content: str) -> None:
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary_name, path)
+        _publish_output(temporary_name, path, overwrite=overwrite)
     except Exception:
         with contextlib.suppress(OSError):
             os.unlink(temporary_name)
         raise
 
 
+def _publish_output(temporary_name: str, output: Path, *, overwrite: bool) -> None:
+    """Publish complete output, optionally refusing existing files without a race."""
+
+    if overwrite:
+        os.replace(temporary_name, output)
+    elif os.name == "nt":
+        # Windows rename refuses an existing destination, including link aliases.
+        os.rename(temporary_name, output)
+    else:
+        # Same-directory hard linking is atomic and never replaces a destination.
+        # If unsupported by the filesystem, fail safely instead of falling back
+        # to a racy exists()/replace() sequence.
+        os.link(temporary_name, output)
+        with contextlib.suppress(OSError):
+            os.unlink(temporary_name)
+
+
 def _spreadsheet_safe(value: str) -> str:
     """Prevent a path or filename from becoming a spreadsheet formula."""
 
-    if value.startswith(("=", "+", "-", "@", "\t", "\r")):
+    if value.startswith(("=", "+", "-", "@", "\t", "\r", "\n")):
         return f"'{value}"
     return value
